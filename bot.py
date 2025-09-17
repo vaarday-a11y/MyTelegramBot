@@ -1,82 +1,61 @@
-import logging
-from telegram import InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import Updater, CommandHandler, MessageHandler, Filters, CallbackQueryHandler
+import re
+from telegram.ext import Updater, MessageHandler, Filters
 import yt_dlp
 import os
 
-# Tokeningizni shu yerga yozing
-TOKEN = "8467004923:AAGf6E3gcaCbyljcpUKBJ5BLQL8JX2P5PnM"
+# Bu yerga o'zingizning bot tokeningizni yozing
+BOT_TOKEN = "8467004923:AAGf6E3gcaCbyljcpUKBJ5BLQL8JX2P5PnM"
 
-logging.basicConfig(level=logging.INFO)
+def extract_url(text: str) -> str | None:
+    """
+    Foydalanuvchi yuborgan matndan http yoki https bilan boshlanuvchi
+    haqiqiy URLni qidirib topadi.
+    """
+    pattern = r"(https?://[^\s]+)"
+    match = re.search(pattern, text)
+    if match:
+        # Oxirida vergul yoki nuqta bo'lsa olib tashlaymiz
+        return match.group(0).rstrip('.,)')
+    return None
 
-# /start komandasi
-def start(update, context):
-    update.message.reply_text("Salom! Menga YouTube, TikTok yoki Instagram link yuboring.")
+def download_video(url: str, chat_id: int) -> str:
+    """
+    YouTube linkni yuklab olish.
+    """
+    ydl_opts = {
+        'outtmpl': f'{chat_id}.%(ext)s',
+        'format': 'mp4',
+    }
+    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+        info = ydl.extract_info(url, download=True)
+        return f"{chat_id}.{info['ext']}"
 
-# Link kelganda tugmalar chiqishi
-def handle_link(update, context):
-    url = update.message.text
-    context.user_data["last_url"] = url  # linkni vaqtincha saqlab qo‘yamiz
+def handle_message(update, context):
+    text = update.message.text
 
-    keyboard = [
-        [
-            InlineKeyboardButton("🎥 Video (MP4)", callback_data="video"),
-            InlineKeyboardButton("🎵 Audio (MP3)", callback_data="audio")
-        ]
-    ]
-    reply_markup = InlineKeyboardMarkup(keyboard)
-    update.message.reply_text("Qaysi formatda yuklab olasiz?", reply_markup=reply_markup)
-
-# Tugmalar bosilganda yuklab berish
-def button_handler(update, context):
-    query = update.callback_query
-    choice = query.data
-    url = context.user_data.get("last_url")  # tugma bosilganda linkni qaytarib olamiz
-
+    url = extract_url(text)
     if not url:
-        query.message.reply_text("❌ Xatolik: link topilmadi.")
+        update.message.reply_text("❗️ Havola topilmadi. Iltimos to‘g‘ri link yuboring.")
         return
 
-    if choice == "video":
-        ydl_opts = {
-            "format": "bestvideo+bestaudio/best",
-            "merge_output_format": "mp4",
-            "outtmpl": "output.%(ext)s"
-        }
-    else:
-        ydl_opts = {
-            "format": "bestaudio/best",
-            "outtmpl": "output.%(ext)s",
-            "postprocessors": [{
-                "key": "FFmpegExtractAudio",
-                "preferredcodec": "mp3",
-                "preferredquality": "192",
-            }],
-        }
+    update.message.reply_text("⏳ Video yuklab olinmoqda, biroz kuting…")
 
     try:
-        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            info = ydl.extract_info(url, download=True)
-            file_name = ydl.prepare_filename(info)
-            if choice == "audio":
-                file_name = os.path.splitext(file_name)[0] + ".mp3"
-
-        query.message.reply_document(document=open(file_name, "rb"))
-        os.remove(file_name)
+        file_path = download_video(url, update.message.chat_id)
+        with open(file_path, 'rb') as f:
+            update.message.reply_video(video=f)
+        os.remove(file_path)
     except Exception as e:
-        query.message.reply_text(f"❌ Xatolik: {e}")
+        update.message.reply_text(f"❌ Xatolik: {e}")
 
-# Asosiy funksiya
 def main():
-    updater = Updater(TOKEN, use_context=True)
+    updater = Updater(BOT_TOKEN, use_context=True)
     dp = updater.dispatcher
 
-    dp.add_handler(CommandHandler("start", start))
-    dp.add_handler(MessageHandler(Filters.text & ~Filters.command, handle_link))
-    dp.add_handler(CallbackQueryHandler(button_handler))
+    dp.add_handler(MessageHandler(Filters.text & ~Filters.command, handle_message))
 
     updater.start_polling()
     updater.idle()
 
-if __name__ == "__main__":
+if name == 'main':
     main()
