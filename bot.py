@@ -4,7 +4,10 @@ from telegram.ext import Updater, CommandHandler, MessageHandler, CallbackQueryH
 import yt_dlp
 
 import os
-TOKEN = os.environ.get("BOT_TOKEN")   
+from telegram.ext import Updater
+
+TOKEN = os.getenv("TELEGRAM_TOKEN")  # Key nomi Variables dagidek bir xil!
+updater = Updater(TOKEN, use_context=True)
 
 logging.basicConfig(level=logging.INFO)
 
