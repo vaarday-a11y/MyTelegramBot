@@ -3,6 +3,7 @@ from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Updater, CommandHandler, MessageHandler, CallbackQueryHandler, Filters
 import yt_dlp
 
+import os
 TOKEN = os.getenv("8467004923:AAGf6E3gcaCbyljcpUKBJ5BLQL8JX2P5PnM")  # Railway Variables bo‘limiga token qo‘yilgan bo‘lishi kerak
 
 logging.basicConfig(level=logging.INFO)
