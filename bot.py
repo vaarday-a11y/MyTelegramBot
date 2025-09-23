@@ -62,7 +62,7 @@ def button_handler(update, context):
                 "preferredcodec": "mp3",
                 "preferredquality": "192",
             }],
-        }
+}
 
     try:
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
