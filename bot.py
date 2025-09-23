@@ -52,7 +52,6 @@ def button_handler(update, context):
     # eski fayl bo‘lsa ham yangisini ustiga yozib yuboradi
     "overwrites": True
 }
-}
     else:  # audio
         ydl_opts = {
             "format": "bestaudio/best",
