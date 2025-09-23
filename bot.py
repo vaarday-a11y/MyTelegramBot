@@ -44,10 +44,14 @@ def button_handler(update, context):
     choice, url = query.data.split("|")
 
     if choice == "video":
-        ydl_opts = {
-            "format": "bestvideo+bestaudio/best",
-            "merge_output_format": "mp4",
-            "outtmpl": "video.%(ext)s",
+       ydl_opts = {
+    "format": "bestvideo+bestaudio/best",
+    "merge_output_format": "mp4",
+    # har bir faylni YouTube ID bilan nomlash — eski fayl bilan to‘qnashmaydi
+    "outtmpl": "%(id)s.%(ext)s",
+    # eski fayl bo‘lsa ham yangisini ustiga yozib yuboradi
+    "overwrites": True
+}
         }
     else:  # audio
         ydl_opts = {
