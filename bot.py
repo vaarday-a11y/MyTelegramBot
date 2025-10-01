@@ -1,101 +1,92 @@
-import logging
 import os
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import Updater, CommandHandler, CallbackQueryHandler, MessageHandler, Filters, CallbackContext
+from telegram.ext import Updater, CommandHandler, MessageHandler, CallbackQueryHandler, Filters, CallbackContext
 import yt_dlp
 
-# Logging
-logging.basicConfig(
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO
-)
-logger = logging.getLogger(__name__)
+# Telegram tokeningizni shu yerga yozing
+TOKEN = "SIZNING_BOT_TOKEN"
 
-# Environment variables
-TOKEN = os.getenv("TOKEN")  # Telegram bot token
-COOKIES_FILE = os.getenv("COOKIES_FILE", "cookies.txt")  # Instagram cookies file
+# Instagram cookies fayli shu nomda bo'lishi kerak
+COOKIES_FILE = "cookies.txt"
 
-# Download function
-def download_media(url: str, media_type="video"):
+DOWNLOAD_DIR = "downloads"
+os.makedirs(DOWNLOAD_DIR, exist_ok=True)
+
+def start(update: Update, context: CallbackContext):
+    update.message.reply_text("Salom! Link yuboring (Instagram/TikTok/YouTube) va video, audio yoki rasmni tanlang.")
+
+def handle_link(update: Update, context: CallbackContext):
+    url = update.message.text
+    keyboard = [
+        [InlineKeyboardButton("Video", callback_data=f"video|{url}")],
+        [InlineKeyboardButton("Audio", callback_data=f"audio|{url}")],
+        [InlineKeyboardButton("Rasm", callback_data=f"image|{url}")]
+    ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    update.message.reply_text("Formatni tanlang:", reply_markup=reply_markup)
+
+def download_media(url, download_type):
     ydl_opts = {
-        'outtmpl': 'downloads/%(title)s.%(ext)s',
-        'cookiefile': COOKIES_FILE,
+        'outtmpl': os.path.join(DOWNLOAD_DIR, '%(title)s.%(ext)s'),
+        'quiet': True,
     }
 
-    if media_type == "audio":
-        ydl_opts.update({
-            'format': 'bestaudio/best',
-            'postprocessors': [{
-                'key': 'FFmpegExtractAudio',
-                'preferredcodec': 'mp3',
-                'preferredquality': '192'
-            }]
-        })
-    elif media_type == "image":
-        # Rasm uchun video emas, faqat image yozadi
-        ydl_opts.update({
-            'skip_download': False,
-            'writesubtitles': False,
-            'format': 'bestvideo[ext=mp4]+bestaudio/best'
-        })
+    # Agar Instagram bo'lsa cookies qo'shish
+    if "instagram.com" in url.lower():
+        ydl_opts['cookiefile'] = COOKIES_FILE
+
+    if download_type == "audio":
+        ydl_opts['format'] = 'bestaudio/best'
+        ydl_opts['postprocessors'] = [{
+            'key': 'FFmpegExtractAudio',
+            'preferredcodec': 'mp3',
+            'preferredquality': '192',
+        }]
+    elif download_type == "video":
+        ydl_opts['format'] = 'bestvideo+bestaudio/best'
+    elif download_type == "image":
+        ydl_opts['format'] = 'bestvideo/best'
+        ydl_opts['skip_download'] = True  # Rasmni olish uchun
 
     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
         info = ydl.extract_info(url, download=True)
+        if download_type == "image":
+            # Instagram postdagi rasm
+            if 'entries' in info:
+                image_url = info['entries'][0]['url']
+            else:
+                image_url = info['url']
+            return image_url
         filename = ydl.prepare_filename(info)
-        if media_type == "audio":
+        if download_type == "audio":
             filename = os.path.splitext(filename)[0] + ".mp3"
         return filename
 
-# Handlers
-def start(update: Update, context: CallbackContext):
-    keyboard = [
-        [InlineKeyboardButton("Video", callback_data='video')],
-        [InlineKeyboardButton("Audio", callback_data='audio')],
-        [InlineKeyboardButton("Rasm", callback_data='image')],
-    ]
-    reply_markup = InlineKeyboardMarkup(keyboard)
-    update.message.reply_text("Nimani yuklab olamiz?", reply_markup=reply_markup)
-
-def button(update: Update, context: CallbackContext):
+def button_handler(update: Update, context: CallbackContext):
     query = update.callback_query
     query.answer()
-    context.user_data['media_type'] = query.data
-    query.edit_message_text(text=f"Endi linkni yuboring ({query.data})")
-
-def handle_message(update: Update, context: CallbackContext):
-    url = update.message.text
-    media_type = context.user_data.get('media_type', 'video')
+    data = query.data.split("|")
+    download_type, url = data[0], data[1]
+    query.edit_message_text(text="Yuklanmoqda... Iltimos kuting ⏳")
     try:
-        update.message.reply_text(f"{media_type} yuklanmoqda... ⏳")
-        file_path = download_media(url, media_type)
-        with open(file_path, 'rb') as f:
-            if media_type == "audio":
-                update.message.reply_audio(f)
-            elif media_type == "image":
-                update.message.reply_photo(f)
-            else:
-                update.message.reply_video(f)
+        file_path = download_media(url, download_type)
+        if download_type == "image":
+            query.message.reply_photo(file_path)
+        else:
+            query.message.reply_document(open(file_path, 'rb'))
     except Exception as e:
-        update.message.reply_text(f"❌ Xatolik: {str(e)}")
+        query.message.reply_text(f"❌ Xatolik: {e}")
 
-# Main
 def main():
-    if not TOKEN:
-        logger.error("TOKEN topilmadi. Environment variable qo‘shing!")
-        return
-
-    if not os.path.exists("downloads"):
-        os.makedirs("downloads")
-
     updater = Updater(TOKEN, use_context=True)
     dp = updater.dispatcher
 
     dp.add_handler(CommandHandler("start", start))
-    dp.add_handler(CallbackQueryHandler(button))
-    dp.add_handler(MessageHandler(Filters.text & ~Filters.command, handle_message))
+    dp.add_handler(MessageHandler(Filters.text & ~Filters.command, handle_link))
+    dp.add_handler(CallbackQueryHandler(button_handler))
 
     updater.start_polling()
-    logger.info("Bot ishga tushdi!")
     updater.idle()
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()
