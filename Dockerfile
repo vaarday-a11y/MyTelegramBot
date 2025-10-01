@@ -1,17 +1,15 @@
-# Используем Python 3.11
-FROM python:3.11
+# Python image
+FROM python:3.10-slim
 
-# Устанавливаем ffmpeg
-RUN apt-get update && apt-get install -y ffmpeg
-
-# Рабочая директория
+# Ishchi katalog
 WORKDIR /app
 
-# Копируем все файлы в контейнер
-COPY . .
-
-# Устанавливаем библиотеки
+# Kerakli fayllarni ko‘chirish
+COPY requirements.txt requirements.txt
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Запуск бота
+# Bot fayllarini ko‘chirish
+COPY . .
+
+# Botni ishga tushirish
 CMD ["python", "bot.py"]
