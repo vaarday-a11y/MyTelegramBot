@@ -17,24 +17,40 @@ def start(update, context):
 
 def handle_link(update, context):
     text = update.message.text
-    urls = re.findall(r'(https?://\S+)', text)
+
+    # URLni aniqlash (https:// yoki www. bilan boshlansa ham ushlaydi)
+    urls = re.findall(r'(https?://\S+|www\.\S+)', text)
+    
     if not urls:
-        update.message.reply_text("❌ Faqat haqiqiy link yuboring.")
+        update.message.reply_text("❌ Iltimos, to‘liq havola yuboring.")
         return
 
     url = urls[0]
 
+    # Qaysi platformadan ekanini aniqlash
+    if "instagram.com" in url:
+        platform = "Instagram"
+    elif "tiktok.com" in url:
+        platform = "TikTok"
+    elif "youtube.com" in url or "youtu.be" in url:
+        platform = "YouTube"
+    else:
+        update.message.reply_text("❌ Bu platforma qo‘llab-quvvatlanmaydi.")
+        return
+
+    # Tugmalar chiqarish
     keyboard = [
         [
             InlineKeyboardButton("🎥 Video (MP4)", callback_data=f"video|{url}"),
             InlineKeyboardButton("🎵 Audio (MP3)", callback_data=f"audio|{url}")
         ]
     ]
-    update.message.reply_text(
-        "Qaysi formatda yuklab olasiz?",
-        reply_markup=InlineKeyboardMarkup(keyboard)
-    )
+    reply_markup = InlineKeyboardMarkup(keyboard)
 
+    update.message.reply_text(
+        f"✅ {platform} havolasi aniqlandi. Yuklab olish turini tanlang 👇",
+        reply_markup=reply_markup
+    )
 def button_handler(update, context):
     query = update.callback_query
     query.answer()
