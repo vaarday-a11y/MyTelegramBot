@@ -3,23 +3,18 @@ from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Updater, CommandHandler, MessageHandler, CallbackQueryHandler, Filters
 import yt_dlp
 
-import os
-from telegram.ext import Updater
-
-TOKEN = os.getenv("TELEGRAM_TOKEN")  # Key nomi Variables dagidek bir xil!
-updater = Updater(TOKEN, use_context=True)
+TOKEN = os.getenv("TELEGRAM_TOKEN")  # Variables dagi key nomi bilan bir xil bo‘lishi kerak!
 
 logging.basicConfig(level=logging.INFO)
 
 def start(update, context):
     update.message.reply_text(
-        "Salom! Menga YouTube yoki TikTok link yuboring.\n"
+        "Salom! Menga YouTube, TikTok yoki Instagram link yuboring.\n"
         "Keyin video yoki mp3 formatini tanlashingiz mumkin."
     )
 
 def handle_link(update, context):
     text = update.message.text
-    # matndan URL ni ajratib olish
     urls = re.findall(r'(https?://\S+)', text)
     if not urls:
         update.message.reply_text("❌ Faqat haqiqiy link yuboring.")
@@ -43,17 +38,25 @@ def button_handler(update, context):
     query.answer()
     choice, url = query.data.split("|")
 
+    # Instagram uchun ham ishlaydigan umumiy sozlamalar
+    common_opts = {
+        "outtmpl": "%(id)s.%(ext)s",
+        "overwrites": True,
+        "quiet": True,
+        "noplaylist": True,
+        "cookiesfrombrowser": ("chrome",),   # instagram uchun foydali
+        "http_headers": {"User-Agent": "Mozilla/5.0"},  # bloklanmasligi uchun
+    }
+
     if choice == "video":
-       ydl_opts = {
-    "format": "bestvideo+bestaudio/best",
-    "merge_output_format": "mp4",
-    # har bir faylni YouTube ID bilan nomlash — eski fayl bilan to‘qnashmaydi
-    "outtmpl": "%(id)s.%(ext)s",
-    # eski fayl bo‘lsa ham yangisini ustiga yozib yuboradi
-    "overwrites": True
-}
+        ydl_opts = {
+            **common_opts,
+            "format": "bestvideo+bestaudio/best",
+            "merge_output_format": "mp4",
+        }
     else:  # audio
         ydl_opts = {
+            **common_opts,
             "format": "bestaudio/best",
             "outtmpl": "audio.%(ext)s",
             "postprocessors": [{
@@ -61,7 +64,7 @@ def button_handler(update, context):
                 "preferredcodec": "mp3",
                 "preferredquality": "192",
             }],
-}
+        }
 
     try:
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
