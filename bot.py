@@ -12,8 +12,16 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# 🔹 Token olish
-TOKEN = os.environ.get("BOT_TOKEN")
+# 🔹 Token olish (BOT_TOKEN yoki TELEGRAM_TOKEN dan)
+TOKEN = (
+    os.environ.get("BOT_TOKEN")
+    or os.environ.get("TELEGRAM_TOKEN")
+    or os.environ.get("TELEGRAM_BOT_TOKEN")
+)
+
+if not TOKEN:
+    logger.error("❌ Telegram bot token topilmadi. Railway Variables bo‘limiga BOT_TOKEN qo‘shing.")
+    raise SystemExit("Missing Telegram bot token (set BOT_TOKEN or TELEGRAM_TOKEN)")
 
 # 🔹 URL saqlash uchun global storage
 URL_STORE = {}
@@ -135,6 +143,7 @@ def main():
     dp.add_handler(CallbackQueryHandler(button_handler))
 
     updater.start_polling()
+    logger.info("🤖 Bot ishga tushdi!")
     updater.idle()
 
 
