@@ -42,31 +42,27 @@ def button_handler(update, context):
 
     # Cookies.txt Railway Variables orqali olinadi
     cookies_path = "cookies.txt"
-    if os.getenv("COOKIES_TXT"):
-        with open(cookies_path, "w", encoding="utf-8") as f:
-            f.write(os.getenv("COOKIES_TXT"))
-
     if choice == "video":
-        ydl_opts = {
-            "format": "bestvideo+bestaudio/best",
-            "merge_output_format": "mp4",
-            "outtmpl": "%(id)s.%(ext)s",
-            "overwrites": True,
-        }
-        if os.path.exists(cookies_path):
-    ydl_opts["cookiefile"] = cookies_path
-    else:  # audio
-        ydl_opts = {
-            "format": "bestaudio/best",
-            "outtmpl": "audio.%(ext)s",
-            "postprocessors": [{
-                "key": "FFmpegExtractAudio",
-                "preferredcodec": "mp3",
-                "preferredquality": "192",
-            }],
-        }
-        if os.path.exists(cookies_path):
-    ydl_opts["cookiefile"] = cookies_path
+    ydl_opts = {
+        "format": "bestvideo+bestaudio/best",
+        "merge_output_format": "mp4",
+        "outtmpl": "%(id)s.%(ext)s",
+        "overwrites": True,
+    }
+    if os.path.exists(cookies_path):
+        ydl_opts["cookiefile"] = cookies_path
+else:  # audio
+    ydl_opts = {
+        "format": "bestaudio/best",
+        "outtmpl": "audio.%(ext)s",
+        "postprocessors": [{
+            "key": "FFmpegExtractAudio",
+            "preferredcodec": "mp3",
+            "preferredquality": "192",
+        }],
+    }
+    if os.path.exists(cookies_path):
+        ydl_opts["cookiefile"] = cookies_path
     try:
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             info = ydl.extract_info(url, download=True)
