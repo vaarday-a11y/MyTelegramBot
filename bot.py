@@ -11,10 +11,10 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # TOKEN environment variable orqali olinadi (Railway-da sozla)
-TOKEN = os.getenv("TOKEN")
+TOKEN = os.getenv("TELEGRAM_TOKEN")
 
 # Cookies fayl manzili (agar Instagram login kerak bo'lsa)
-COOKIES = os.getenv("COOKIES")  # misol: "cookies.txt"
+COOKIES = os.getenv("COOKIES_TXT")  # misol: "cookies.txt"
 
 def start(update: Update, context: CallbackContext):
     update.message.reply_text(
