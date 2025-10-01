@@ -1,15 +1,11 @@
-# Python image
 FROM python:3.10-slim
 
-# Ishchi katalog
-WORKDIR /app
+RUN apt-get update && apt-get install -y ffmpeg && apt-get clean && rm -rf /var/lib/apt/lists/*
 
-# Kerakli fayllarni ko‘chirish
+WORKDIR /app
 COPY requirements.txt requirements.txt
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Bot fayllarini ko‘chirish
 COPY . .
 
-# Botni ishga tushirish
 CMD ["python", "bot.py"]
