@@ -1,151 +1,91 @@
 import logging
 import os
-import re
-import uuid
-from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
-from telegram.ext import Updater, CommandHandler, MessageHandler, CallbackQueryHandler, Filters, CallbackContext
 import yt_dlp
+import instaloader
+from telegram import Update
+from telegram.ext import Updater, CommandHandler, MessageHandler, Filters, CallbackContext
 
-# 🔹 Logging sozlamasi
+TOKEN = os.getenv("BOT_TOKEN")  # Railway/GitHub Secrets da BOT_TOKEN sifatida qo'ygan bo'lishing kerak
+
 logging.basicConfig(
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    level=logging.INFO
 )
+
 logger = logging.getLogger(__name__)
 
-# 🔹 Token olish (BOT_TOKEN yoki TELEGRAM_TOKEN dan)
-TOKEN = (
-    os.environ.get("BOT_TOKEN")
-    or os.environ.get("TELEGRAM_TOKEN")
-    or os.environ.get("TELEGRAM_BOT_TOKEN")
-)
-
-if not TOKEN:
-    logger.error("❌ Telegram bot token topilmadi. Railway Variables bo‘limiga BOT_TOKEN qo‘shing.")
-    raise SystemExit("Missing Telegram bot token (set BOT_TOKEN or TELEGRAM_TOKEN)")
-
-# 🔹 URL saqlash uchun global storage
-URL_STORE = {}
-
-
-# 🔹 Start komandasi
 def start(update: Update, context: CallbackContext):
-    update.message.reply_text(
-        "👋 Salom! Men Instagram, TikTok va YouTube’dan video/audio yuklab bera olaman.\n\n"
-        "Menga faqat havolani yuboring!"
-    )
+    update.message.reply_text("Salom! Menga YouTube yoki Instagram havolasini yuboring.")
 
+def download_youtube(url):
+    ydl_opts = {
+        'format': 'best',
+        'outtmpl': 'downloads/%(title)s.%(ext)s'
+    }
+    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+        info = ydl.extract_info(url, download=True)
+        return ydl.prepare_filename(info)
 
-# 🔹 Havolani aniqlash
-def handle_link(update: Update, context: CallbackContext):
-    text = update.message.text or ""
-    urls = re.findall(r"(https?://\S+|www\.\S+)", text)
-    if not urls:
-        update.message.reply_text("❌ Iltimos, to‘liq havola yuboring.")
-        return
-
-    url = urls[0].strip()
-    if "instagram.com" in url:
-        platform = "Instagram"
-    elif "tiktok.com" in url:
-        platform = "TikTok"
-    elif "youtube.com" in url or "youtu.be" in url:
-        platform = "YouTube"
-    else:
-        update.message.reply_text("❌ Bu platforma qo‘llab-quvvatlanmaydi.")
-        return
-
-    # 🔹 unique id yaratamiz va URLni saqlaymiz
-    uid = uuid.uuid4().hex
-    URL_STORE[uid] = url
-
-    keyboard = [
-        [
-            InlineKeyboardButton("🎥 Video (MP4)", callback_data=f"video|{uid}"),
-            InlineKeyboardButton("🎵 Audio (MP3)", callback_data=f"audio|{uid}")
-        ]
-    ]
-    reply_markup = InlineKeyboardMarkup(keyboard)
-    update.message.reply_text(
-        f"✅ {platform} havolasi aniqlandi. Yuklab olish turini tanlang 👇",
-        reply_markup=reply_markup
-    )
-
-
-# 🔹 Tugma bosilganda ishlaydi
-def button_handler(update: Update, context: CallbackContext):
-    query = update.callback_query
-    if not query:
-        return
+def download_instagram(url):
     try:
-        query.answer()
-    except Exception:
-        pass
-
-    data = query.data or ""
-    if "|" not in data:
-        query.message.reply_text("❌ Noto'g'ri so'rov.")
-        return
-
-    choice, uid = data.split("|", 1)
-    uid = uid.strip()
-    if uid not in URL_STORE:
-        query.message.reply_text("❌ Havola topilmadi yoki eskirgan. Iltimos, qayta yuboring.")
-        return
-
-    url = URL_STORE.pop(uid)  # olish va o‘chirish (bir martalik)
-    query.message.reply_text("⏳ Yuklab olinmoqda, kuting...")
-
-    # 🔹 yuklash parametrlari
-    if choice == "video":
+        # Avval video/reels tekshiramiz
         ydl_opts = {
-            "format": "best",
-            "outtmpl": "%(title)s.%(ext)s",
-            "noplaylist": True,
+            'outtmpl': 'downloads/%(title)s.%(ext)s',
+            'format': 'best'
         }
-    else:
-        ydl_opts = {
-            "format": "bestaudio/best",
-            "outtmpl": "%(title)s.%(ext)s",
-            "noplaylist": True,
-            "postprocessors": [
-                {"key": "FFmpegExtractAudio", "preferredcodec": "mp3", "preferredquality": "192"}
-            ],
-        }
-
-    try:
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             info = ydl.extract_info(url, download=True)
-            file_name = ydl.prepare_filename(info)
-            if choice == "audio":
-                file_name = os.path.splitext(file_name)[0] + ".mp3"
-
-        # 🔹 Foydalanuvchiga faylni yuborish
-        with open(file_name, "rb") as f:
-            if choice == "video":
-                query.message.reply_video(f)
-            else:
-                query.message.reply_audio(f)
-
-        os.remove(file_name)  # vaqtinchalik faylni o‘chirib tashlash
+            return ydl.prepare_filename(info)
 
     except Exception as e:
-        logger.error(f"Yuklab olishda xato: {e}")
-        query.message.reply_text(f"❌ Xatolik: {str(e)}")
+        # Agar video bo'lmasa, rasmni olishga harakat qilamiz
+        try:
+            loader = instaloader.Instaloader(dirname_pattern="downloads", download_videos=False, save_metadata=False)
+            post = instaloader.Post.from_shortcode(loader.context, url.split("/")[-2])
+            file_list = []
+            if post.typename == "GraphImage":
+                loader.download_post(post, target="downloads")
+                file_list.append(f"downloads/{post.owner_username}/{post.date_utc.strftime('%Y-%m-%d_%H-%M-%S_UTC')}.jpg")
+            elif post.typename == "GraphSidecar":
+                for i, node in enumerate(post.get_sidecar_nodes()):
+                    loader.download_post(post, target="downloads")
+                    file_list.append(f"downloads/{post.owner_username}/{post.date_utc.strftime('%Y-%m-%d_%H-%M-%S_UTC')}_{i+1}.jpg")
+            return file_list
+        except Exception as ex:
+            return str(ex)
 
+def handle_message(update: Update, context: CallbackContext):
+    url = update.message.text
+    chat_id = update.message.chat_id
 
-# 🔹 Asosiy funksiyani ishga tushirish
+    if "youtube.com" in url or "youtu.be" in url:
+        try:
+            file_path = download_youtube(url)
+            context.bot.send_video(chat_id=chat_id, video=open(file_path, 'rb'))
+        except Exception as e:
+            update.message.reply_text(f"❌ Xatolik: {e}")
+
+    elif "instagram.com" in url:
+        result = download_instagram(url)
+        if isinstance(result, list):  # agar rasm(lar)
+            for f in result:
+                context.bot.send_photo(chat_id=chat_id, photo=open(f, 'rb'))
+        elif isinstance(result, str):  # agar xatolik bo'lsa
+            update.message.reply_text(f"❌ Xatolik: {result}")
+        else:  # video/reels
+            context.bot.send_video(chat_id=chat_id, video=open(result, 'rb'))
+    else:
+        update.message.reply_text("Faqat YouTube va Instagram havolalarini yuboring.")
+
 def main():
     updater = Updater(TOKEN, use_context=True)
     dp = updater.dispatcher
 
     dp.add_handler(CommandHandler("start", start))
-    dp.add_handler(MessageHandler(Filters.text & ~Filters.command, handle_link))
-    dp.add_handler(CallbackQueryHandler(button_handler))
+    dp.add_handler(MessageHandler(Filters.text & ~Filters.command, handle_message))
 
     updater.start_polling()
-    logger.info("🤖 Bot ishga tushdi!")
     updater.idle()
-
 
 if __name__ == "__main__":
     main()
