@@ -54,7 +54,7 @@ def button_handler(update, context):
             "overwrites": True,
         }
         if os.path.exists(cookies_path):
-            ydl_opts["cookies"] = cookies_path
+    ydl_opts["cookiefile"] = cookies_path
     else:  # audio
         ydl_opts = {
             "format": "bestaudio/best",
@@ -66,8 +66,7 @@ def button_handler(update, context):
             }],
         }
         if os.path.exists(cookies_path):
-            ydl_opts["cookies"] = cookies_path
-
+    ydl_opts["cookiefile"] = cookies_path
     try:
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             info = ydl.extract_info(url, download=True)
