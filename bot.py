@@ -3,14 +3,16 @@ from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Updater, CommandHandler, MessageHandler, CallbackQueryHandler, Filters
 import yt_dlp
 
-TOKEN = os.getenv("TELEGRAM_TOKEN")  # Variables dagi key nomi bilan bir xil bo‘lishi kerak!
+# Telegram token (Railway Variables ichida TELEGRAM_TOKEN qilib qo‘yasiz)
+TOKEN = os.getenv("TELEGRAM_TOKEN")
+updater = Updater(TOKEN, use_context=True)
 
 logging.basicConfig(level=logging.INFO)
 
 def start(update, context):
     update.message.reply_text(
-        "Salom! Menga YouTube, TikTok yoki Instagram link yuboring.\n"
-        "Keyin video yoki mp3 formatini tanlashingiz mumkin."
+        "👋 Salom! Menga YouTube, TikTok yoki Instagram link yuboring.\n"
+        "So‘ng video yoki mp3 formatini tanlashingiz mumkin."
     )
 
 def handle_link(update, context):
@@ -38,25 +40,23 @@ def button_handler(update, context):
     query.answer()
     choice, url = query.data.split("|")
 
-    # Instagram uchun ham ishlaydigan umumiy sozlamalar
-    common_opts = {
-        "outtmpl": "%(id)s.%(ext)s",
-        "overwrites": True,
-        "quiet": True,
-        "noplaylist": True,
-        "cookiesfrombrowser": ("chrome",),   # instagram uchun foydali
-        "http_headers": {"User-Agent": "Mozilla/5.0"},  # bloklanmasligi uchun
-    }
+    # Cookies.txt Railway Variables orqali olinadi
+    cookies_path = "cookies.txt"
+    if os.getenv("COOKIES_TXT"):
+        with open(cookies_path, "w", encoding="utf-8") as f:
+            f.write(os.getenv("COOKIES_TXT"))
 
     if choice == "video":
         ydl_opts = {
-            **common_opts,
             "format": "bestvideo+bestaudio/best",
             "merge_output_format": "mp4",
+            "outtmpl": "%(id)s.%(ext)s",
+            "overwrites": True,
         }
+        if os.path.exists(cookies_path):
+            ydl_opts["cookies"] = cookies_path
     else:  # audio
         ydl_opts = {
-            **common_opts,
             "format": "bestaudio/best",
             "outtmpl": "audio.%(ext)s",
             "postprocessors": [{
@@ -65,6 +65,8 @@ def button_handler(update, context):
                 "preferredquality": "192",
             }],
         }
+        if os.path.exists(cookies_path):
+            ydl_opts["cookies"] = cookies_path
 
     try:
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
@@ -79,7 +81,6 @@ def button_handler(update, context):
         query.message.reply_text(f"❌ Xatolik: {e}")
 
 def main():
-    updater = Updater(TOKEN, use_context=True)
     dp = updater.dispatcher
     dp.add_handler(CommandHandler("start", start))
     dp.add_handler(MessageHandler(Filters.text & ~Filters.command, handle_link))
